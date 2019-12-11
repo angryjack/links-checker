@@ -1,27 +1,29 @@
 package main
 
 import (
+    "bufio"
     "fmt"
+    "golang.org/x/net/html"
+    "log"
     "net/http"
     "os"
-
-    "golang.org/x/net/html"
+    "strings"
 )
 
 func main() {
     for _, url := range os.Args[1:] {
+
         links, err := parseLinks(url)
         if err != nil {
-            fmt.Fprintf(os.Stderr, "parse: %v\n", err)
+            panic(err)
         }
 
-        for _, link := range links {
-            fmt.Println(link)
-        }
+        sortLinks(&links)
+        write(links)
     }
 }
 
-func parseLinks(url string) ([]string, error)  {
+func parseLinks(url string) ([]string, error) {
     resp, err := http.Get(url)
     if err != nil {
         return nil, err
@@ -54,4 +56,47 @@ func visit(links []string, n *html.Node) []string {
     }
 
     return links
+}
+
+func sortLinks(links *[]string) {
+    var tmp []string
+    for _, link := range *links {
+
+        if strings.Contains(link, "#") {
+            link = strings.Split(link, "#")[0]
+        }
+
+        if len(link) > 1 && string(link[0]) == "/" {
+            tmp = append(tmp, link)
+        }
+    }
+
+    // delete duplicates
+    keys := make(map[string]bool)
+    var list []string
+    for _, entry := range tmp {
+        if _, value := keys[entry]; !value {
+            keys[entry] = true
+            list = append(list, entry)
+        }
+    }
+
+    *links = list
+}
+
+func write(links []string) {
+    file, err := os.OpenFile("result.txt", os.O_CREATE|os.O_WRONLY, 0644)
+
+    if err != nil {
+        log.Fatalf("failed creating file: %s", err)
+    }
+
+    datawriter := bufio.NewWriter(file)
+
+    for _, data := range links {
+        _, _ = datawriter.WriteString(data + "\n")
+    }
+
+    datawriter.Flush()
+    file.Close()
 }
