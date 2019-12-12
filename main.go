@@ -18,8 +18,14 @@ func main() {
             panic(err)
         }
 
-        sortLinks(&links)
+        sortLinks(&links, url)
         write(links)
+
+        for _, link := range links {
+            go getStatusCode(link)
+        }
+
+        fmt.Println("Найдено ссылкок:", len(links))
     }
 }
 
@@ -58,17 +64,27 @@ func visit(links []string, n *html.Node) []string {
     return links
 }
 
-func sortLinks(links *[]string) {
+func sortLinks(links *[]string, url string) {
     var tmp []string
     for _, link := range *links {
 
+        // todo подумать над регуляркой
         if strings.Contains(link, "#") {
             link = strings.Split(link, "#")[0]
         }
-
-        if len(link) > 1 && string(link[0]) == "/" {
-            tmp = append(tmp, link)
+        if strings.Contains(link, "?") {
+            link = strings.Split(link, "?")[0]
         }
+
+        if len(link) > 1 && string(link[0]) != "/" {
+            continue
+        }
+
+        if !strings.Contains(link, "https://") || !strings.Contains(link, "http://") {
+            link = url + link
+        }
+
+        tmp = append(tmp, link)
     }
 
     // delete duplicates
@@ -99,4 +115,12 @@ func write(links []string) {
 
     datawriter.Flush()
     file.Close()
+}
+
+func getStatusCode(link string)  {
+    resp, err := http.Get(link)
+    if err == nil {
+        fmt.Println(link, resp.StatusCode)
+        //c <- string(resp.StatusCode)
+    }
 }
