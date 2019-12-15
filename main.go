@@ -10,19 +10,38 @@ import (
     "strings"
 )
 
+type link struct {
+    url        string
+    statusCode int
+    attempt int
+}
+
 func main() {
     for _, url := range os.Args[1:] {
 
         links, err := parseLinks(url)
         if err != nil {
-            panic(err)
+            fmt.Println("Не удалось получить информацию, ошибка:", err)
+            os.Exit(1)
         }
 
         sortLinks(&links, url)
         write(links)
 
-        for _, link := range links {
-            go getStatusCode(link)
+        c := make(chan link)
+        count := len(links)
+        for _, url := range links {
+            l := link{url, 0, 1}
+            go getStatusCode(l, c)
+        }
+
+        answers := 1
+        for s := range c {
+            fmt.Println("Link:", answers, "Код", s.statusCode, s.url)
+            answers++
+            if answers > count {
+                close(c)
+            }
         }
 
         fmt.Println("Найдено ссылкок:", len(links))
@@ -117,10 +136,16 @@ func write(links []string) {
     file.Close()
 }
 
-func getStatusCode(link string)  {
-    resp, err := http.Get(link)
-    if err == nil {
-        fmt.Println(link, resp.StatusCode)
-        //c <- string(resp.StatusCode)
+func getStatusCode(link link, c chan link) {
+    resp, err := http.Get(link.url)
+    if err != nil {
+        fmt.Println(err)
+        link.statusCode = 000
+        c <- link
+        return
     }
+    defer resp.Body.Close()
+
+    link.statusCode = resp.StatusCode
+    c <- link
 }
